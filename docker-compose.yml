@@ -1,0 +1,88 @@
+version: '3.8'
+services:
+  database:
+    image: mariadb:latest
+    container_name: new_mdb
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: admin_password
+      MYSQL_DATABASE: QLKH
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: Password123!
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data.sql:/docker-entrypoint-initdb.d/data.sql
+    ports:
+      - "3306:3306"
+    networks:
+      - vts1-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vts-backend
+    restart: always
+    depends_on:
+      - database
+      - ocr-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://database:3306/QLKH
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: Password123!
+      OCR_SERVICE_URL: http://ocr-service:5000/ocr/upload
+    networks:
+      - vts1-network
+
+  ocr-service:
+    build:
+      context: ./backend/python-service
+      dockerfile: Dockerfile
+    container_name: flask-ocr-service
+    restart: always
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./secrets:/app/secrets
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/vision-key.json
+    networks:
+      - vts1-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vts-frontend
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://nginx/api
+    networks:
+      - vts1-network
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - C:/Users/Admin/VTS-Management/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - C:/Users/Admin/VTS-Management/nginx/logs:/var/log/nginx
+      - C:/Users/Admin/VTS-Management/cert:/etc/letsencrypt
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - vts1-network
+
+volumes:
+  db_data:
+
+networks:
+  vts1-network:
+    driver: bridge
