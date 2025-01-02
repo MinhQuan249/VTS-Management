@@ -6,6 +6,7 @@
       <router-link to="/employees" class="nav-link">Employee</router-link>
       <router-link to="/contracts" class="nav-link">Contract</router-link>
       <router-link to="/ocr" class="nav-link">OCR</router-link>
+      <router-link to="/documents" class="nav-link">Document Repository</router-link>
     </nav>
     <!-- Nội dung thay đổi phía dưới -->
     <div class="content">
@@ -47,7 +48,7 @@
   padding: 20px;
 }
 body {
-  background-color: antiquewhite; /* Màu nền mới, ví dụ màu xám nhạt */
+  background: url('/src/components/images/img.png'); /* Màu nền mới, ví dụ màu xám nhạt */
   color: #181818; /* Màu chữ (đảm bảo dễ đọc trên nền mới) */
   margin: 0;
   font-family: Arial, sans-serif; /* Font chữ tổng quát */

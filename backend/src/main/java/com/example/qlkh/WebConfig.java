@@ -1,5 +1,6 @@
 package com.example.qlkh;
 
+import com.example.qlkh.Service.Impl.DocumentServiceImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -13,6 +14,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
     private static final Logger logger = LoggerFactory.getLogger(WebConfig.class);
+
+    public static final Logger logger2 = LoggerFactory.getLogger(DocumentServiceImpl.class);
+
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         logger.info("CORS configuration is being applied");

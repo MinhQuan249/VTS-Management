@@ -84,7 +84,7 @@ export default {
   methods: {
     async fetchCustomers() {
       try {
-        this.customers = await getCustomers(); // Lấy danh sách khách hàng từ API
+        this.customers = await getCustomers();
       } catch (error) {
         alert("Error fetching customers!");
         console.error("Error fetching customers:", error);
@@ -92,11 +92,9 @@ export default {
     },
 
     async submitNewCustomer() {
-      this.fetchCustomers();
       try {
         const duplicateCustomer = this.customers.find(
-            (customer) =>
-                customer.phone === this.newCustomer.phone
+            (customer) => customer.phone === this.newCustomer.phone
         );
 
         if (duplicateCustomer) {
@@ -104,9 +102,8 @@ export default {
           return;
         }
 
-        // Nếu không trùng, thêm khách hàng mới
         await addCustomer(this.newCustomer);
-        this.fetchCustomers(); // Reload danh sách khách hàng
+        this.fetchCustomers();
         alert("Customer added successfully!");
         this.closeAddCustomerModal();
       } catch (error) {
@@ -119,7 +116,7 @@ export default {
       if (confirm("Are you sure you want to delete this customer?")) {
         try {
           await deleteCustomer(id);
-          this.fetchCustomers(); // Reload customer list
+          this.fetchCustomers();
           alert("Customer deleted successfully!");
         } catch (error) {
           alert(`Error deleting customer with ID: ${id}`);
@@ -127,10 +124,11 @@ export default {
         }
       }
     },
+
     async submitEditCustomer() {
       try {
         await updateCustomer(this.editCustomerData.id, this.editCustomerData);
-        this.fetchCustomers(); // Reload customer list
+        this.fetchCustomers();
         alert("Customer updated successfully!");
         this.closeEditCustomerModal();
       } catch (error) {
@@ -138,20 +136,24 @@ export default {
         console.error(`Error updating customer with ID: ${this.editCustomerData.id}`, error);
       }
     },
+
     openAddCustomerModal() {
       this.isAddModalOpen = true;
     },
+
     closeAddCustomerModal() {
       this.isAddModalOpen = false;
-      this.newCustomer = {name: "", address: "", phone: ""};
+      this.newCustomer = { name: "", address: "", phone: "" };
     },
+
     openEditCustomerModal(customer) {
       this.isEditModalOpen = true;
-      this.editCustomerData = {...customer};
+      this.editCustomerData = { ...customer };
     },
+
     closeEditCustomerModal() {
       this.isEditModalOpen = false;
-      this.editCustomerData = {id: "", name: "", address: "", phone: ""};
+      this.editCustomerData = { id: "", name: "", address: "", phone: "" };
     },
   },
   mounted() {
@@ -161,7 +163,6 @@ export default {
 </script>
 
 <style>
-/* Modal styling */
 .modal {
   position: fixed;
   top: 50%;
@@ -173,12 +174,39 @@ export default {
   border-radius: 8px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table th,
+table td {
+  padding: 12px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+
+table th {
+  background-color: #2c3e50;
+  color: white;
+}
+
+table tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+table tr:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
 .modal label {
   margin-left: 5px;
 }
+
 .modal input {
   margin-left: 5px;
-  text-size: 15px;
+  font-size: 15px;
   border-radius: 8px;
 }
 

@@ -20,3 +20,6 @@ cert/
 
 #Nginx
 nginx/
+
+# Uploads
+uploads/

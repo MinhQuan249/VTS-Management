@@ -10,8 +10,6 @@ export const getCustomers = async () => {
     return response.data;
   } catch (error) {
     console.error("Error fetching customers:", error.response || error.message);
-    console.log("VITE_API_URL:", import.meta.env.VITE_API_URL);
-    console.log("API URL:", API_URL);
     throw error;
   }
 };

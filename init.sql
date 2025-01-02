@@ -32,3 +32,22 @@ CREATE TABLE IF NOT EXISTS `hd` (
   KEY `FK3m5dajokx5c8shm2uw6dah1s5` (`kh_id`),
   CONSTRAINT `FK3m5dajokx5c8shm2uw6dah1s5` FOREIGN KEY (`kh_id`) REFERENCES `kh` (`khid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+CREATE TABLE documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    khid INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    extracted_text TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (khid) REFERENCES kh(khid) ON DELETE CASCADE
+);
+CREATE TABLE documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    khid INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    extracted_text TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (khid) REFERENCES kh(khid) ON DELETE CASCADE
+);
+
