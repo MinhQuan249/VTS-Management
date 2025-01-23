@@ -6,13 +6,13 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: admin_password
-      MYSQL_DATABASE: QLKH
+      MYSQL_DATABASE:  QLKH
       MYSQL_USER: admin
       MYSQL_PASSWORD: Password123!
     volumes:
       - db_data:/var/lib/mysql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./data.sql:/docker-entrypoint-initdb.d/data.sql
+      - C:/Users/Admin/VTS-Management/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - C:/Users/Admin/VTS-Management/02-data.sql:/docker-entrypoint-initdb.d/02-data.sql
     ports:
       - "3306:3306"
     networks:
@@ -31,8 +31,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mariadb://database:3306/QLKH
       SPRING_DATASOURCE_USERNAME: admin
       SPRING_DATASOURCE_PASSWORD: Password123!
-      OCR_SERVICE_URL: http://ocr-service:5000/ocr/upload
+      OCR_SERVICE_URL: http://ocr-service:5000/ocr
       FILE_STORAGE_PATH: /app/uploads
+    ports:
+      - "8080:8080"
     volumes:
       - ./uploads:/app/uploads
     networks:
@@ -46,10 +48,6 @@ services:
     restart: always
     ports:
       - "5000:5000"
-    volumes:
-      - ./secrets:/app/secrets
-    environment:
-      GOOGLE_APPLICATION_CREDENTIALS: /app/secrets/vision-key.json
     networks:
       - vts1-network
 

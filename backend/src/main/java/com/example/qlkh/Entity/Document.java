@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -30,7 +31,7 @@ public class Document {
             inverseJoinColumns = @JoinColumn(name = "khid")
     )
     @JsonManagedReference
-    private List<Customer> authors;
+    private List<Customer> authors = new ArrayList<>();
 
     @NotNull(message = "File name cannot be null")
     @Size(max = 255, message = "File name cannot exceed 255 characters")

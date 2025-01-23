@@ -6,7 +6,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.InputStreamResource;
 import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -14,12 +13,14 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.*;
+import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static com.example.qlkh.Controller.OCRController.logger;
 
 @RestController
 @RequestMapping("/api/documents")
@@ -29,9 +30,6 @@ public class DocumentController {
 
     @Value("${ocr.service.url}")
     private String ocrServiceUrl;
-
-    @Value("${file.storage.path}")
-    private String fileStoragePath;
 
     public DocumentController(DocumentService documentService) {
         this.documentService = documentService;
@@ -44,51 +42,72 @@ public class DocumentController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadDocument(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "authors", required = false) String authorsJson
-    ) {
+    public ResponseEntity<?> uploadDocuments(@RequestParam("files") List<MultipartFile> files,
+                                             @RequestParam(value = "authors", required = false) String authorsJson) {
         try {
-            if (file.isEmpty()) {
-                return ResponseEntity.badRequest().body("File không hợp lệ");
+            // Kiểm tra danh sách tệp
+            if (files == null || files.isEmpty()) {
+                return ResponseEntity.badRequest().body("Không có tệp nào được tải lên");
             }
 
-            String originalFileName = file.getOriginalFilename();
-            if (!isSupportedFileType(originalFileName)) {
-                return ResponseEntity.badRequest().body("File định dạng không được hỗ trợ");
+            List<DocumentDTO> savedDocuments = new ArrayList<>();
+
+            // Lặp qua từng tệp trong danh sách
+            for (MultipartFile file : files) {
+                logger.info("Processing file: {}", file.getOriginalFilename());
+                if (file.isEmpty()) {
+                    logger.warn("File is empty: {}", file.getOriginalFilename());
+                    continue;
+                }
+
+                String originalFileName = file.getOriginalFilename();
+                logger.info("Original file name: {}", originalFileName);
+                if (!isSupportedFileType(originalFileName)) {
+                    logger.warn("Unsupported file type: {}", originalFileName);
+                    continue;
+                }
+
+                File tempFile = File.createTempFile(UUID.randomUUID().toString(), getFileExtension(originalFileName));
+                file.transferTo(tempFile);
+
+                String extractedText = callOcrService(tempFile);
+                logger.info("Extracted text for file {}: {}", originalFileName, extractedText);
+
+                DocumentDTO documentDTO = new DocumentDTO();
+                documentDTO.setFileName(originalFileName);
+                documentDTO.setFilePath(tempFile.getAbsolutePath());
+                documentDTO.setAuthorIds(parseAuthors(authorsJson));
+                documentDTO.setExtractedText(extractedText);
+
+                DocumentDTO savedDocument = documentService.uploadDocument(documentDTO);
+                logger.info("Document saved with ID: {}", savedDocument.getId());
+                savedDocuments.add(savedDocument);
+                tempFile.delete();
+                logger.info("TempFile deleted!");
             }
 
-            // Lưu file tạm
-            File tempFile = File.createTempFile(UUID.randomUUID().toString(), getFileExtension(originalFileName));
-            file.transferTo(tempFile);
+            if (savedDocuments.isEmpty()) {
+                return ResponseEntity.badRequest().body("Không có tệp hợp lệ được tải lên");
+            }
 
-            // Gửi file đến dịch vụ OCR
-            String extractedText = callOcrService(tempFile);
-
-            // Tạo DTO
-            DocumentDTO documentDTO = new DocumentDTO();
-            documentDTO.setFileName(originalFileName);
-            documentDTO.setFilePath(tempFile.getAbsolutePath());
-            documentDTO.setAuthorIds(parseAuthors(authorsJson));
-            documentDTO.setExtractedText(extractedText);
-
-            DocumentDTO savedDocument = documentService.uploadDocument(documentDTO);
-
-            return ResponseEntity.ok(savedDocument);
+            return ResponseEntity.ok(savedDocuments);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Lỗi khi upload tài liệu: " + e.getMessage());
+            logger.error("Lỗi khi tải lên tài liệu", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Lỗi khi tải lên tài liệu: " + e.getMessage());
         }
     }
+
 
     private List<Integer> parseAuthors(String authorsJson) {
         try {
             if (authorsJson == null || authorsJson.isEmpty()) {
-                return List.of(); // Trả về danh sách rỗng nếu không có authors
+                return List.of();
             }
             ObjectMapper mapper = new ObjectMapper();
             return mapper.readValue(authorsJson, new TypeReference<List<Integer>>() {});
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi khi parse authors: " + authorsJson, e);
+            throw new RuntimeException("Error parsing authors", e);
         }
     }
 
@@ -110,44 +129,35 @@ public class DocumentController {
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("file", new FileSystemResource(file));
+            body.add("files", new FileSystemResource(file));
 
             HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-            ResponseEntity<String> response = restTemplate.postForEntity(ocrServiceUrl, requestEntity, String.class);
+            ResponseEntity<String> response = restTemplate.postForEntity(ocrServiceUrl + "/upload", requestEntity, String.class);
 
             if (response.getStatusCode().is2xxSuccessful()) {
                 ObjectMapper mapper = new ObjectMapper();
-                // Parse JSON results from OCR API
                 List<Map<String, Object>> results = mapper.readValue(
                         mapper.readTree(response.getBody()).get("results").toString(),
                         new TypeReference<List<Map<String, Object>>>() {}
                 );
 
-                // Concatenate all texts from results into a single string
                 StringBuilder extractedText = new StringBuilder();
                 for (Map<String, Object> result : results) {
                     extractedText.append(result.get("text").toString()).append("\n");
                 }
                 return extractedText.toString().trim();
             } else {
-                throw new RuntimeException("OCR Service returned an error: " + response.getStatusCode());
+                throw new RuntimeException("OCR Service error: " + response.getStatusCode());
             }
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi khi gọi OCR Service: " + e.getMessage(), e);
+            throw new RuntimeException("Error calling OCR Service", e);
         }
     }
-
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDocument(@PathVariable Integer id) {
         try {
-            String filePath = documentService.getDocumentFilePathById(id);
-            File file = new File(filePath);
-            if (file.exists()) {
-                file.delete();
-            }
-
             boolean deleted = documentService.deleteDocument(id);
             if (!deleted) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

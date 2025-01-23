@@ -1,7 +1,11 @@
 CREATE DATABASE IF NOT EXISTS QLKH;
 
 USE QLKH;
-
+DROP TABLE IF EXISTS `document_authors`;
+DROP TABLE IF EXISTS `documents`;
+DROP TABLE IF EXISTS `hd`;
+DROP TABLE IF EXISTS `kh`;
+DROP TABLE IF EXISTS `nv`;
 -- Tạo bảng nv
 CREATE TABLE IF NOT EXISTS `nv` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
@@ -32,22 +36,20 @@ CREATE TABLE IF NOT EXISTS `hd` (
   KEY `FK3m5dajokx5c8shm2uw6dah1s5` (`kh_id`),
   CONSTRAINT `FK3m5dajokx5c8shm2uw6dah1s5` FOREIGN KEY (`kh_id`) REFERENCES `kh` (`khid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+-- Tạo bảng documents
 CREATE TABLE documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    khid INT NOT NULL,
     file_name VARCHAR(255) NOT NULL,
     file_path TEXT NOT NULL,
-    extracted_text TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (khid) REFERENCES kh(khid) ON DELETE CASCADE
-);
-CREATE TABLE documents (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    khid INT NOT NULL,
-    file_name VARCHAR(255) NOT NULL,
-    file_path TEXT NOT NULL,
-    extracted_text TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (khid) REFERENCES kh(khid) ON DELETE CASCADE
-);
+    extracted_text LONGTEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+-- Tạo bảng liên kết document_authors
+CREATE TABLE IF NOT EXISTS `document_authors` (
+  `document_id` INT NOT NULL,
+  `khid` INT NOT NULL,
+  PRIMARY KEY (`document_id`, `khid`),
+  CONSTRAINT `FK_document` FOREIGN KEY (`document_id`) REFERENCES `documents` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `FK_customer` FOREIGN KEY (`khid`) REFERENCES `kh` (`khid`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 

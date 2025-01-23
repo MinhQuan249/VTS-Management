@@ -9,6 +9,7 @@ import com.example.qlkh.dto.DocumentDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -16,8 +17,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.example.qlkh.WebConfig.logger2;
+import static com.example.qlkh.Controller.OCRController.logger;
 
+@Transactional
 @Service
 public class DocumentServiceImpl implements DocumentService {
 
@@ -53,8 +55,11 @@ public class DocumentServiceImpl implements DocumentService {
         } else {
             document.setAuthors(Collections.emptyList()); // Nếu không có tác giả
         }
-
+        logger.info("Attempting to save document: {}", document);
         Document savedDocument = documentRepository.save(document);
+        logger.info("Document saved successfully with ID: {}", savedDocument.getId());
+
+
         return new DocumentDTO(
                 savedDocument.getId(),
                 savedDocument.getAuthors().stream().map(Customer::getId).collect(Collectors.toList()),
@@ -84,9 +89,10 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     public String getDocumentFilePathById(Integer documentId) {
         Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new RuntimeException("Document not found with id: " + documentId));
+                .orElseThrow(() -> new RuntimeException("Document not found: " + documentId));
         return document.getFilePath();
     }
+
 
     private DocumentDTO convertToDTO(Document document) {
         return new DocumentDTO(

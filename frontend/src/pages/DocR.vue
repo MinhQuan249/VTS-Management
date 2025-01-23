@@ -8,8 +8,8 @@
       <section class="upload-form">
         <form @submit.prevent="handleUpload">
           <!-- File Input -->
-          <label for="file">Choose a file:</label>
-          <input type="file" id="file" @change="onFileSelect" required />
+          <label for="file">Choose files:</label>
+          <input type="file" id="file" @change="onFileSelect" multiple required />
 
           <!-- Select Authors -->
           <label for="authors">Select Authors:</label>
@@ -98,6 +98,9 @@
       <div class="details-container">
         <h3>Document Details</h3>
         <p><strong>Name:</strong> {{ documentDetails.fileName }}</p>
+        <p><strong>Authors:</strong>
+          <span>{{ documentDetails.authorNames.join(', ') }}</span>
+        </p>
         <p><strong>Created At:</strong> {{ formatDate(documentDetails.createdAt) }}</p>
         <p><strong>Extracted Text:</strong></p>
         <textarea readonly rows="10" cols="50">{{ documentDetails.extractedText }}</textarea>
@@ -109,7 +112,6 @@
 
 <script>
 import {
-  uploadDocument,
   getDocuments,
   deleteDocument,
   getDocumentDetails,
@@ -119,7 +121,7 @@ import { getCustomers } from "../services/customerService";
 export default {
   data() {
     return {
-      selectedFile: null,
+      selectedFiles: [], // Lưu trữ danh sách file được chọn
       uploadStatus: "",
       isUploadSuccessful: false,
       documents: [],
@@ -148,11 +150,10 @@ export default {
       this.filteredDocuments = this.documents.filter((doc) => {
         const matchesQuery = doc.fileName.toLowerCase().includes(query);
 
-        // Xử lý logic lọc theo loại tài liệu
         const matchesType = this.filterType
             ? this.filterType === "image"
-                ? /\.(jpg|jpeg|png|gif)$/i.test(doc.fileName) // Kiểm tra các định dạng ảnh
-                : doc.fileName.endsWith(this.filterType) // Lọc PDF, Word
+                ? /\.(jpg|jpeg|png|gif)$/i.test(doc.fileName)
+                : doc.fileName.endsWith(this.filterType)
             : true;
 
         const matchesDate = this.filterDate
@@ -173,9 +174,21 @@ export default {
     async viewDocument(docId) {
       try {
         const docDetails = await getDocumentDetails(docId);
-        this.documentDetails = docDetails;
+
+        // Kiểm tra nếu `authorIds` tồn tại và không rỗng
+        const authorIds = docDetails.authorIds || []; // Nếu null, gán mảng rỗng
+        const authorNames =
+            authorIds.length > 0
+                ? authorIds.map((authorId) => {
+                  // Ánh xạ ID sang tên từ danh sách customers
+                  const customer = this.customers.find((c) => c.id === authorId);
+                  return customer ? customer.name : `Unknown (ID: ${authorId})`;
+                })
+                : ["Ẩn danh"]; // Nếu không có tác giả, hiển thị "Ẩn danh"
+
+        // Gán lại dữ liệu documentDetails với tên tác giả
+        this.documentDetails = { ...docDetails, authorNames };
         this.isDocumentDetailsVisible = true;
-        console.log("Document Details:", docDetails);
       } catch (error) {
         console.error("Failed to fetch document details:", error);
         alert("Failed to fetch document details.");
@@ -189,7 +202,6 @@ export default {
       this.isLoadingCustomers = true;
       try {
         this.customers = await getCustomers();
-        console.log("Fetched Customers:", this.customers);
       } catch (error) {
         console.error("Error fetching customers:", error);
       } finally {
@@ -197,42 +209,37 @@ export default {
       }
     },
     onFileSelect(event) {
-      this.selectedFile = event.target.files[0];
+      this.selectedFiles = Array.from(event.target.files); // Lưu nhiều file
     },
     async handleUpload() {
-      if (!this.selectedFile) {
-        alert("Please select a file.");
+      if (!this.selectedFiles || this.selectedFiles.length === 0) {
+        alert("Please select at least one file.");
         return;
       }
       try {
         const formData = new FormData();
-        formData.append("file", this.selectedFile);
+        this.selectedFiles.forEach((file) => {
+          formData.append("files", file); // Sử dụng key "files"
+        });
         formData.append("authors", JSON.stringify(this.selectedAuthors));
 
-        const OCR_API_URL = import.meta.env.VITE_API_URL + "/ocr/upload";
-        const ocrResponse = await fetch(OCR_API_URL, {
+        const UPLOAD_API_URL = import.meta.env.VITE_API_URL + "/documents/upload";
+        const response = await fetch(UPLOAD_API_URL, {
           method: "POST",
           body: formData,
         });
-        if (!ocrResponse.ok) {
-          const error = await ocrResponse.text();
-          console.error("OCR Service Error:", error);
-          alert("Failed to extract text from file.");
+
+        if (!response.ok) {
+          const error = await response.text();
+          console.error("Upload Error:", error);
+          alert(`Upload failed: ${error}`);
           return;
         }
-        const ocrData = await ocrResponse.json();
-        const extractedText = ocrData.results
-            .map((result) => result.text)
-            .join("\n");
-        const response = await uploadDocument(
-            this.selectedFile,
-            this.selectedAuthors,
-            extractedText
-        );
-        alert("Upload successful!");
+
+        alert(`Upload successful!`);
         this.fetchDocuments();
       } catch (error) {
-        console.error("Failed to upload document:", error);
+        console.error("Failed to upload documents:", error);
         alert("Upload failed.");
       }
     },
@@ -246,6 +253,7 @@ export default {
   },
 };
 </script>
+
 <style scoped>
 .main-container {
   display: flex;
@@ -385,7 +393,7 @@ button:hover {
   border-radius: 8px;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
   z-index: 1000;
-  width: 400px;
+  width: 800px;
   text-align: left;
 }
 

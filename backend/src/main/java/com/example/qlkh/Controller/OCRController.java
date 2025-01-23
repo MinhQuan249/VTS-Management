@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,29 +18,33 @@ import java.util.Map;
 @RequestMapping("/api/ocr")
 public class OCRController {
 
-    private static final Logger logger = LoggerFactory.getLogger(OCRController.class);
+    public static final Logger logger = LoggerFactory.getLogger(OCRController.class);
 
     @Autowired
     private OCRService ocrService;
 
     @PostMapping("/upload")
-    public ResponseEntity<?> uploadFile(@RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("No file uploaded");
+    public ResponseEntity<?> uploadFiles(@RequestParam("files") List<MultipartFile> files) {
+        if (files.isEmpty()) {
+            return ResponseEntity.badRequest().body("No files uploaded");
         }
 
-        String contentType = file.getContentType();
-        if (contentType == null || (!contentType.equals("application/pdf") && !contentType.startsWith("image"))) {
-            return ResponseEntity.badRequest().body("Invalid file type. Please upload an image or PDF.");
+        // Kiểm tra từng file
+        for (MultipartFile file : files) {
+            String contentType = file.getContentType();
+            if (contentType == null || (!contentType.equals("application/pdf") && !contentType.startsWith("image"))) {
+                return ResponseEntity.badRequest().body("Invalid file type for file: " + file.getOriginalFilename());
+            }
         }
 
         try {
-            Map<String, Object> result = ocrService.processOCR(file);
-            return ResponseEntity.ok(result);
+            // Gọi service để xử lý nhiều file
+            List<Map<String, Object>> results = ocrService.processMultipleFiles(files);
+            return ResponseEntity.ok(results);
         } catch (Exception e) {
-            logger.error("Error processing file: {}", e.getMessage(), e);
+            logger.error("Error processing files: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error processing file: " + e.getMessage()));
+                    .body(Map.of("error", "Error processing files: " + e.getMessage()));
         }
     }
 

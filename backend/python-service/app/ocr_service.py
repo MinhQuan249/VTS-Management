@@ -1,38 +1,121 @@
-from google.cloud import vision
-import time
 import logging
-import subprocess
-from docx import Document
-from sentence_transformers import SentenceTransformer, util
-from typing import List, Dict
-import unicodedata
+import os
 import re
+import subprocess
+import time
 from difflib import SequenceMatcher
+from typing import Dict, List
+
+import cv2
+import numpy as np
+import pytesseract
+import unicodedata
+from PIL import Image
+from docx import Document
+from skimage.measure import shannon_entropy
+
+import py_vncorenlp
+
 
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def recognize_text_with_google_vision(image_path):
+# Đường dẫn Tesseract (Windows)
+pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
+
+def analyze_image(image_path):
+    # Đọc ảnh
+    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise ValueError("Cannot read image.")
+    height, width = image.shape
+
+    analysis = {}
+
+    # 1. Phân tích độ phân giải
+    image_pil = Image.open(image_path)
+    dpi = image_pil.info.get('dpi', (72, 72))[0]
+    analysis["resolution"] = f"{dpi} dpi"
+    analysis["needs_rescale"] = dpi < 300
+
+    # 2. Phân tích độ nhiễu
+    entropy = shannon_entropy(image)
+    analysis["noise_level"] = "High" if entropy < 5 else "Low"
+
+    # 3. Phân tích góc nghiêng
+    edges = cv2.Canny(image, 50, 150)  # Phát hiện cạnh
+    lines = cv2.HoughLines(edges, 1, np.pi / 180, 200)
+    skew_angle = 0  # Mặc định là không nghiêng
+
+    if lines is not None:
+        angles = []
+        for rho, theta in lines[:, 0]:
+            angle = np.degrees(theta) - 90
+            angles.append(angle)
+        skew_angle = np.median(angles)  # Góc nghiêng trung vị
+    analysis["skew_angle"] = f"{skew_angle:.2f} degrees"
+    analysis["is_skewed"] = abs(skew_angle) > 2  # Nghiêng nếu góc > 2 độ
+
+    # 4. Phân tích mức độ dính ký tự
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, 2))
+    eroded = cv2.erode(image, kernel, iterations=1)
+    analysis["character_spacing"] = "Tight" if np.sum(eroded != image) > 1000 else "Normal"
+
+    # 5. Độ tương phản
+    contrast = np.std(image)
+    analysis["contrast_level"] = "Low" if contrast < 50 else "Good"
+
+    # 7. Tỉ lệ văn bản
+    text_area = np.sum(image < 128) / (height * width)  # Vùng đen được coi là văn bản
+    analysis["text_coverage"] = f"{text_area * 100:.2f}%"
+
+    # 8. Định dạng file
+    file_format = image_path.split(".")[-1].upper()
+    analysis["file_format"] = file_format
+    analysis["format_recommended"] = "TIFF" if file_format != "TIFF" else "Good"
+
+    # Tổng hợp gợi ý xử lý
+    analysis["recommendations"] = []
+    if analysis["needs_rescale"]:
+        analysis["recommendations"].append("Rescale image to at least 300 dpi using image editing software or AI tools.")
+    if analysis["noise_level"] == "High":
+        analysis["recommendations"].append("Apply noise reduction using filters like Median or Gaussian Blur.")
+    if analysis["contrast_level"] == "Low":
+        analysis["recommendations"].append("Enhance contrast using Histogram Equalization or CLAHE.")
+    if analysis["character_spacing"] == "Tight":
+        analysis["recommendations"].append("Separate characters using dilation or morphological operations.")
+    if analysis["is_skewed"]:
+        analysis["recommendations"].append(f"Deskew the image by rotating it {skew_angle:.2f} degrees.")
+    if analysis["text_coverage"] and float(analysis["text_coverage"].strip('%')) < 20:
+        analysis["recommendations"].append("Crop the image to focus on the text region.")
+    if analysis["file_format"] != "TIFF":
+        analysis["recommendations"].append("Convert the file to TIFF for better OCR performance.")
+
+    for key, value in analysis.items():
+        if isinstance(value, list):
+            logger.info(f"{key}:")
+            for item in value:
+                logger.info(f"  - {item}")
+        else:
+            logger.info(f"{key}: {value}")
+
+    return analysis
+
+def recognize_text_with_tesseract(image_path):
     try:
-        logger.info("Starting Google Vision OCR for file: %s", image_path)
+        logger.info("Starting Tesseract OCR for file: %s", image_path)
         start_time = time.time()
+        analyze_image(image_path)
+        # Mở ảnh và nhận diện văn bản bằng Tesseract
+        text = pytesseract.image_to_string(Image.open(image_path), lang="vie")
 
-        client = vision.ImageAnnotatorClient()
-        with open(image_path, "rb") as image_file:
-            content = image_file.read()
-
-        image = vision.Image(content=content)
-        response = client.text_detection(image=image)
-        texts = response.text_annotations
-
-        extracted_text = texts[0].description if texts else ""
         processing_time = round((time.time() - start_time) * 1000)
         logger.info("OCR completed in %d ms", processing_time)
 
-        return {"text": extracted_text.strip(), "time": f"{processing_time} ms"}
+        return {"text": text.strip(), "time": f"{processing_time} ms"}
     except Exception as e:
-        logger.error(f"Error in Google Vision API: {str(e)}")
+        logger.error(f"Error in OCR processing: {str(e)}")
         return {"text": f"Error: {str(e)}", "time": "N/A"}
 
 def process_word_to_text(file_path):
@@ -72,8 +155,11 @@ def convert_doc_to_text(doc_path):
         logger.error(f"Error converting .doc to text: {str(e)}")
         return f"Error: {str(e)}"
 
-model = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2') # Load model tại cấp module
-def find_common_text(ocr_text: str, db_text: str, threshold: float = 0.6) -> List[str]:
+def find_common_text(ocr_text: str, db_text: str, threshold: int = 3) -> List[str]:
+    # Chuẩn hóa văn bản
+    ocr_text = re.sub(r'\s+', ' ', ocr_text.strip())
+    db_text = re.sub(r'\s+', ' ', db_text.strip())
+
     ocr_words = ocr_text.split()
     db_words = db_text.split()
     matcher = SequenceMatcher(None, ocr_words, db_words)
@@ -83,10 +169,16 @@ def find_common_text(ocr_text: str, db_text: str, threshold: float = 0.6) -> Lis
         if match.size > 0:
             common = ocr_words[match.a: match.a + match.size]
             common_text = " ".join(common)
-            if len(common_text.split()) > 2:  # Chỉ giữ các đoạn có từ 3 từ trở lên
+            # Lọc đoạn trùng lặp theo ngưỡng số từ
+            if len(common_text.split()) >= threshold:
                 matches.append(common_text)
     return matches
 
+def preprocess_text(text: str) -> str:
+    text = unicodedata.normalize("NFKC", text)
+    text = re.sub(r'\s+', ' ', text)  # Loại bỏ khoảng trắng thừa
+    text = re.sub(r'[^\w\s]', '', text)  # Loại bỏ ký tự đặc biệt
+    return text.lower().strip()
 
 def calculate_jaccard_similarity(text1: str, text2: str) -> float:
     """
@@ -110,55 +202,39 @@ def calculate_similarity(ocr_text: str, database_texts: List[Dict[str, str]]) ->
         if len(ocr_text.split()) < 5:
             raise ValueError("OCR text is too short for reliable comparison.")
 
-        # Chuẩn hóa văn bản đầu vào
-        def preprocess_text(text: str) -> str:
-            text = unicodedata.normalize("NFKC", text)
-            text = re.sub(r'\s+', ' ', text)  # Loại bỏ khoảng trắng thừa
-            text = re.sub(r'[^\w\s]', '', text)  # Loại bỏ ký tự đặc biệt
-            return text.lower().strip()
-
         ocr_text = preprocess_text(ocr_text)
         if not ocr_text:
             raise ValueError("Processed OCR text is empty after preprocessing.")
 
-        for doc in database_texts:
-            doc['text'] = preprocess_text(doc['text'])
-
-        # Loại bỏ các văn bản ngắn khỏi cơ sở dữ liệu
-        database_texts = [doc for doc in database_texts if len(doc['text'].split()) > 5]
+        database_texts = [
+            {"id": doc['id'], "text": preprocess_text(doc['text']), "fileName": doc.get('fileName', 'Unknown')}
+            for doc in database_texts if len(doc['text'].split()) > 5
+        ]
         if not database_texts:
             raise ValueError("No valid database texts available for comparison.")
 
-        logger.info("Encoding texts in batches...")
-        texts = [ocr_text] + [doc['text'] for doc in database_texts]
-        embeddings = model.encode(texts, convert_to_tensor=True)
-
-        ocr_embedding = embeddings[0]
-        db_embeddings = embeddings[1:]
-
-        logger.info("Calculating cosine similarity...")
-        cosine_similarity_scores = util.pytorch_cos_sim(ocr_embedding, db_embeddings)[0]
-
-        # Tạo danh sách kết quả
         results = []
-        for doc, cosine_score in zip(database_texts, cosine_similarity_scores):
+        for doc in database_texts:
             jaccard_score = calculate_jaccard_similarity(ocr_text, doc['text'])
             common_texts = find_common_text(ocr_text, doc['text'])
             results.append({
                 "document_id": doc['id'],
-                "fileName": doc.get('fileName', 'Unknown'),  # Bổ sung tên file (nếu có)
-                "cosine_similarity": float(cosine_score),
+                "fileName": doc['fileName'],
                 "jaccard_similarity": jaccard_score,
                 "common_texts": common_texts
             })
 
-        # Sắp xếp kết quả theo Cosine Similarity
-        results.sort(key=lambda x: x['cosine_similarity'], reverse=True)
+        results.sort(key=lambda x: x['jaccard_similarity'], reverse=True)
         logger.info("Similarity calculation completed.")
         return results
-
+    except FileNotFoundError as fe:
+        logger.error(f"File error: {fe}")
+        raise
+    except ValueError as ve:
+        logger.warning(f"Validation error: {ve}")
+        raise
     except Exception as e:
-        logger.error(f"Error calculating similarity: {str(e)}")
+        logger.error(f"Unexpected error: {e}")
         raise
 
 def handle_compare_request(request_data: Dict):

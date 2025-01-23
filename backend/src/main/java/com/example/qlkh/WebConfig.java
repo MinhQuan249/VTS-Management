@@ -15,8 +15,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
     private static final Logger logger = LoggerFactory.getLogger(WebConfig.class);
 
-    public static final Logger logger2 = LoggerFactory.getLogger(DocumentServiceImpl.class);
-
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         logger.info("CORS configuration is being applied");
