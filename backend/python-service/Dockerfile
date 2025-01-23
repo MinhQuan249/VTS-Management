@@ -6,7 +6,6 @@ RUN mkdir -p /app
 
 # Cài đặt torch trước để tránh cài đặt lại
 RUN pip install --no-cache-dir torch==2.5.0 --index-url https://download.pytorch.org/whl/cpu
-RUN pip install pytesseract --upgrade
 
 # Cài đặt các tiện ích hệ thống cần thiết
 RUN apt-get update && apt-get install -y --no-install-recommends \

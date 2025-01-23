@@ -8,7 +8,6 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
-import pytesseract
 import unicodedata
 from PIL import Image
 from docx import Document
@@ -20,9 +19,9 @@ import py_vncorenlp
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Đường dẫn Tesseract (Windows)
-pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
+#
+# # Đường dẫn Tesseract (Windows)
+# pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
 
 def analyze_image(image_path):
     # Đọc ảnh
@@ -103,20 +102,26 @@ def analyze_image(image_path):
     return analysis
 
 def recognize_text_with_tesseract(image_path):
-    try:
-        logger.info("Starting Tesseract OCR for file: %s", image_path)
-        start_time = time.time()
-        analyze_image(image_path)
-        # Mở ảnh và nhận diện văn bản bằng Tesseract
-        text = pytesseract.image_to_string(Image.open(image_path), lang="vie")
+     try:
+         logger.info("Starting Tesseract OCR for file: %s", image_path)
+         start_time = time.time()
 
-        processing_time = round((time.time() - start_time) * 1000)
-        logger.info("OCR completed in %d ms", processing_time)
+         # Gọi CLI của Tesseract
+         output_file = "/tmp/tesseract_output"  # Tên file tạm để lưu kết quả OCR
+         command = f"/usr/local/bin/tesseract {image_path} {output_file} -l vie"
+         subprocess.run(command, shell=True, check=True)
 
-        return {"text": text.strip(), "time": f"{processing_time} ms"}
-    except Exception as e:
-        logger.error(f"Error in OCR processing: {str(e)}")
-        return {"text": f"Error: {str(e)}", "time": "N/A"}
+         # Đọc kết quả từ file đầu ra
+         with open(f"{output_file}.txt", "r", encoding="utf-8") as file:
+             text = file.read().strip()
+
+         processing_time = round((time.time() - start_time) * 1000)
+         logger.info("OCR completed in %d ms", processing_time)
+
+         return {"text": text, "time": f"{processing_time} ms"}
+     except Exception as e:
+         logger.error(f"Error in OCR processing: {str(e)}")
+         return {"text": f"Error: {str(e)}", "time": "N/A"}
 
 def process_word_to_text(file_path):
     try:
