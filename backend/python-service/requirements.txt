@@ -6,4 +6,6 @@ pdf2image
 python-docx
 antiword
 scikit-image
-py_vncorenlp
+transformers
+sentencepiece
+underthesea

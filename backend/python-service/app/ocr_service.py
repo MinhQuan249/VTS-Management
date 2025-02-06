@@ -13,9 +13,6 @@ from PIL import Image
 from docx import Document
 from skimage.measure import shannon_entropy
 
-import py_vncorenlp
-
-
 # Cấu hình logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -113,6 +110,7 @@ def recognize_text_with_tesseract(image_path):
 
          # Đọc kết quả từ file đầu ra
          with open(f"{output_file}.txt", "r", encoding="utf-8") as file:
+#              text = file.read().strip().lower()
              text = file.read().strip()
 
          processing_time = round((time.time() - start_time) * 1000)
