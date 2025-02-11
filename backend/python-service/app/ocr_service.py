@@ -17,7 +17,7 @@ from skimage.measure import shannon_entropy
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 #
-# # Đường dẫn Tesseract (Windows)
+# Đường dẫn Tesseract (Windows)
 # pytesseract.pytesseract.tesseract_cmd = "/usr/local/bin/tesseract"
 
 def analyze_image(image_path):
@@ -105,7 +105,7 @@ def recognize_text_with_tesseract(image_path):
 
          # Gọi CLI của Tesseract
          output_file = "/tmp/tesseract_output"  # Tên file tạm để lưu kết quả OCR
-         command = f"/usr/local/bin/tesseract {image_path} {output_file} -l vie"
+         command = f"/usr/local/bin/tesseract {image_path} {output_file} -l Vietnamese"
          subprocess.run(command, shell=True, check=True)
 
          # Đọc kết quả từ file đầu ra
