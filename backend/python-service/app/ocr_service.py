@@ -105,7 +105,7 @@ def recognize_text_with_tesseract(image_path):
 
          # Gọi CLI của Tesseract
          output_file = "/tmp/tesseract_output"  # Tên file tạm để lưu kết quả OCR
-         command = f"/usr/local/bin/tesseract {image_path} {output_file} -l Vietnamese"
+         command = f"/usr/local/bin/tesseract {image_path} {output_file} -l Vietnamese --psm 3 -c user_words_file=Vietnamese.wordlist -c user_patterns_file=Vietnamese.user-patterns"
          subprocess.run(command, shell=True, check=True)
 
          # Đọc kết quả từ file đầu ra
